@@ -1,0 +1,140 @@
+===============================================================================
+   ENHANCEMENT GUIDE - PRIORITAS TINGGI
+===============================================================================
+
+FITUR BARU YANG DITAMBAHKAN:
+
+1. ✅ SCREENSHOT ON FAILURE
+   - Otomatis capture screenshot saat test gagal
+   - Screenshot disimpan di: artifacts/screenshots/
+   - Screenshot ditambahkan ke HTML report
+   - Konfigurasi: SCREENSHOT_ON_FAILURE di config.py
+
+2. ✅ TEST DATA MANAGEMENT
+   - File: tests/test_data.py
+   - Pisahkan test data dari test code
+   - Mudah maintain dan update test data
+   - Support multiple user types dan form data
+
+3. ✅ ENVIRONMENT CONFIGURATION
+   - Support multi environment: dev/staging/prod
+   - Switch environment via environment variable
+   - Konfigurasi per environment di config.py
+
+===============================================================================
+   CARA MENGGUNAKAN FITUR BARU
+===============================================================================
+
+1. SCREENSHOT ON FAILURE:
+   -------------------------------------------
+   - Otomatis aktif saat test gagal
+   - Tidak perlu konfigurasi tambahan
+   - Lihat screenshot di: artifacts/screenshots/
+   - Screenshot juga muncul di HTML report
+
+   Untuk disable:
+   config.py -> SCREENSHOT_ON_FAILURE = False
+
+2. TEST DATA MANAGEMENT:
+   -------------------------------------------
+   # Import test data
+   from tests.test_data import TEST_USERS, TEST_FORM_DATA
+   
+   # Gunakan dalam test
+   def test_login(driver):
+       user = TEST_USERS["valid_user"]
+       login_page.login(user["email"], user["password"])
+
+   # Edit test data di tests/test_data.py
+
+3. ENVIRONMENT CONFIGURATION:
+   -------------------------------------------
+   # Windows - Set environment
+   set ENV=dev && pytest -s
+   set ENV=staging && pytest -s
+   set ENV=prod && pytest -s
+
+   # Linux/Mac - Set environment
+   ENV=dev pytest -s
+   ENV=staging pytest -s
+   ENV=prod pytest -s
+
+   # Default environment: dev (jika tidak di-set)
+
+   # Edit environment config di config.py -> ENVIRONMENTS
+
+===============================================================================
+   CONTOH TEST MENGGUNAKAN FITUR BARU
+===============================================================================
+
+File: tests/test_with_enhancements.py
+
+1. test_login_with_test_data()
+   - Menggunakan test data dari test_data.py
+   
+2. test_invalid_login_with_test_data()
+   - Menggunakan test data untuk invalid user
+   
+3. test_environment_config()
+   - Menunjukkan environment yang sedang digunakan
+   
+4. test_screenshot_on_failure_demo()
+   - Demo screenshot otomatis saat test gagal
+
+===============================================================================
+   STRUKTUR FOLDER SETELAH UPDATE
+===============================================================================
+
+project_root/
+│
+├── artifacts/
+│   ├── videos/
+│   └── screenshots/           # NEW! Screenshot saat test gagal
+│
+├── tests/
+│   ├── test_data.py           # NEW! Test data management
+│   ├── test_example.py
+│   ├── test_pom_example.py
+│   └── test_with_enhancements.py  # NEW! Contoh menggunakan fitur baru
+│
+├── config.py                  # UPDATED! Multi-environment support
+├── conftest.py                # UPDATED! Screenshot on failure
+└── README.md                  # UPDATED! Dokumentasi baru
+
+===============================================================================
+   TESTING FITUR BARU
+===============================================================================
+
+1. Test screenshot on failure:
+   pytest -s tests/test_with_enhancements.py::test_screenshot_on_failure_demo
+   
+   Check: artifacts/screenshots/ (screenshot akan muncul)
+
+2. Test dengan test data:
+   pytest -s tests/test_with_enhancements.py::test_login_with_test_data
+
+3. Test dengan environment berbeda:
+   set ENV=staging && pytest -s tests/test_with_enhancements.py::test_environment_config
+
+===============================================================================
+   BEST PRACTICES
+===============================================================================
+
+1. TEST DATA:
+   - Simpan semua test data di test_data.py
+   - Jangan hardcode data di test code
+   - Gunakan meaningful names untuk data
+
+2. ENVIRONMENT:
+   - Gunakan ENV=dev untuk development
+   - Gunakan ENV=staging untuk pre-production testing
+   - JANGAN gunakan ENV=prod untuk automation testing (kecuali read-only)
+
+3. SCREENSHOT:
+   - Screenshot otomatis pada failure
+   - Review screenshot untuk debugging
+   - Clean up old screenshots secara berkala
+
+===============================================================================
+   END OF ENHANCEMENT GUIDE
+===============================================================================

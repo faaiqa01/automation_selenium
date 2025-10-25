@@ -1,0 +1,6 @@
+selenium
+pytest
+pytest-html
+opencv-python
+numpy
+mss

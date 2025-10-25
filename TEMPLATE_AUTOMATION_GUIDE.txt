@@ -1,0 +1,447 @@
+===============================================================================
+   TEMPLATE AUTOMATION SELENIUM + PYTEST - PANDUAN LENGKAP
+===============================================================================
+
+DIBUAT: 2025-10-25
+TUJUAN: Template dasar untuk project automation testing menggunakan Selenium & Pytest
+
+===============================================================================
+   STRUKTUR FOLDER PROJECT
+===============================================================================
+
+project_root/
+│
+├── Pages/                      # Page Object Model (POM) classes
+│   └── __init__.py
+│
+├── tests/                      # Test cases
+│   ├── __init__.py
+│   └── test_example.py
+│
+├── utils/                      # Helper utilities
+│   ├── __init__.py
+│   └── recorder.py            # Screen recorder (optional)
+│
+├── reports/                    # Generated HTML reports (auto-created)
+├── artifacts/                  # Videos, screenshots (auto-created)
+│   └── videos/
+│
+├── conftest.py                 # Pytest fixtures & hooks
+├── config.py                   # Global configuration
+├── pytest.ini                  # Pytest settings & markers
+├── requirements.txt            # Python dependencies
+├── session.json               # Login session cookies (auto-generated)
+├── README.md                  # Documentation
+└── .gitignore                 # Git ignore file
+
+===============================================================================
+   FILE 1: requirements.txt
+===============================================================================
+
+selenium
+pytest
+pytest-html
+opencv-python
+numpy
+mss
+
+INSTALASI:
+pip install -r requirements.txt
+
+===============================================================================
+   FILE 2: config.py
+===============================================================================
+
+# File untuk menyimpan semua konfigurasi global
+
+# Ganti dengan URL aplikasi yang Anda uji
+BASE_URL = "https://your-app-url.com"
+
+# Kredensial untuk login
+# DIHARAPKAN INI HANYA UNTUK DEVELOPMENT, GUNAKAN SISTEM YANG LEBIH AMAN UNTUK PRODUKSI
+USERNAME = "your-email@example.com"
+PASSWORD = "your-password"
+
+# Tambahkan konfigurasi lain yang bisa digunakan di banyak tes
+# Contoh:
+TIMEOUT = 10
+IMPLICIT_WAIT = 10
+
+===============================================================================
+   FILE 3: conftest.py
+===============================================================================
+
+import pytest
+from pathlib import Path
+import time
+import os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import json
+from config import BASE_URL, USERNAME, PASSWORD
+
+# --- Global Config ---
+VIDEO_PATH = Path(__file__).parent / "artifacts/videos"
+
+# --- Basic Setup Fixtures ---
+
+@pytest.fixture(scope="function")
+def driver(request):
+    """Fixture to set up and tear down WebDriver."""
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(options=chrome_options)
+    
+    yield driver
+    
+    # Teardown
+    driver.quit()
+
+@pytest.fixture(scope="function")
+def logged_in_driver(driver):
+    """Handles the login process, provides logged-in driver."""
+    session_file_path = Path(__file__).parent / "session.json"
+    
+    try:
+        # Try login with saved cookies
+        driver.get(BASE_URL)
+        with open(session_file_path, "r") as f:
+            cookies = json.load(f)
+        for cookie in cookies:
+            driver.add_cookie(cookie)
+        
+        print("\n--- Fixture: Cookie ditemukan, mencoba memuat sesi... ---")
+        driver.get(BASE_URL + "/dashboard")  # Adjust to your app's landing page
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "sidebar")))  # Adjust selector
+        print("--- Fixture: Login via cookie berhasil! ---")
+        
+    except Exception as e:
+        # If cookie login fails, do UI login
+        print(f"\n--- Fixture: Gagal login via cookie. Melakukan login via UI... ({e})")
+        driver.get(BASE_URL)
+        
+        # CUSTOMIZE THIS SECTION BASED ON YOUR LOGIN PAGE
+        login_link = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.LINK_TEXT, "Login"))
+        )
+        login_link.click()
+        
+        username_field = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.NAME, "email"))
+        )
+        password_field = driver.find_element(By.NAME, "password")
+        
+        username_field.clear()
+        username_field.send_keys(USERNAME)
+        password_field.clear()
+        password_field.send_keys(PASSWORD)
+        time.sleep(1)
+        
+        sign_in_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CLASS_NAME, "login-button"))
+        )
+        sign_in_button.click()
+        
+        WebDriverWait(driver, 10).until(EC.url_to_be(BASE_URL + "/dashboard"))
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "sidebar")))
+        
+        print("--- Fixture: Login via UI berhasil. ---")
+        
+        # Save cookies for next time
+        with open(session_file_path, "w") as f:
+            json.dump(driver.get_cookies(), f)
+        print("--- Fixture: Cookie baru telah disimpan. ---")
+    
+    yield driver
+
+# --- Hooks for HTML Report ---
+
+def pytest_configure(config):
+    """Auto-generate HTML report with timestamp."""
+    if not config.option.htmlpath:
+        reports_dir = Path('reports')
+        reports_dir.mkdir(exist_ok=True)
+        timestamp = time.strftime('%Y%m%d_%H%M%S')
+        test_paths = config.getoption('file_or_dir')
+        base_name = f"report_{timestamp}"
+        if test_paths and len(test_paths) == 1 and ".py" in test_paths[0]:
+            base_name = Path(test_paths[0]).stem
+        config.option.htmlpath = str(reports_dir / f"{base_name}.html")
+        config.option.self_contained_html = True
+
+import pytest_html
+
+def pytest_html_results_table_row(report, cells):
+    """Add captured logs to HTML report."""
+    if report.passed or report.failed or report.skipped:
+        log_content = ""
+        for section in report.sections:
+            if section[0] == 'Captured stdout':
+                log_content += f"--- Captured Stdout ---\n{section[1]}\n"
+            elif section[0] == 'Captured stderr':
+                log_content += f"--- Captured Stderr ---\n{section[1]}\n"
+        if log_content:
+            cells.insert(2, pytest_html.extras.html(f"<pre>{log_content}</pre>"))
+
+===============================================================================
+   FILE 4: pytest.ini
+===============================================================================
+
+[pytest]
+markers =
+    login_suite: Tests related to login/logout functionality
+    dashboard_suite: Tests related to dashboard page
+    example_suite: Example test suite marker
+    
+addopts = --capture=tee-sys
+
+PENJELASAN:
+- markers: Custom markers untuk mengelompokkan test
+- addopts: Opsi default pytest (capture output)
+
+CARA MENGGUNAKAN MARKER:
+pytest -m login_suite             # Run only login tests
+pytest -m "not login_suite"       # Run all except login tests
+
+===============================================================================
+   FILE 5: tests/test_example.py
+===============================================================================
+
+import pytest
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from config import BASE_URL
+
+@pytest.mark.example_suite
+def test_example_navigation(logged_in_driver):
+    """Example test case - navigate to a page."""
+    driver = logged_in_driver
+    
+    print("\n--- Test: Navigating to example page ---")
+    
+    # Navigate to a page
+    driver.get(BASE_URL + "/example-page")
+    
+    # Wait for element to be visible
+    element = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.ID, "example-element"))
+    )
+    
+    # Assertions
+    assert element.is_displayed(), "Element should be visible"
+    print("--- Test: Navigation successful ---")
+
+@pytest.mark.example_suite
+def test_example_form_submission(logged_in_driver):
+    """Example test case - submit a form."""
+    driver = logged_in_driver
+    
+    print("\n--- Test: Submitting example form ---")
+    
+    driver.get(BASE_URL + "/form-page")
+    
+    # Fill form
+    input_field = driver.find_element(By.ID, "input-field")
+    input_field.send_keys("Test Data")
+    
+    # Submit
+    submit_button = driver.find_element(By.ID, "submit-button")
+    submit_button.click()
+    
+    # Verify success
+    success_message = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CLASS_NAME, "success-message"))
+    )
+    
+    assert "Success" in success_message.text
+    print("--- Test: Form submitted successfully ---")
+
+===============================================================================
+   FILE 6: .gitignore
+===============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Pytest
+.pytest_cache/
+reports/
+artifacts/
+
+# Selenium
+session.json
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Chromedriver
+chromedriver.exe
+chromedriver-win64/
+chromedriver-win64.zip
+
+===============================================================================
+   FILE 7: README.md
+===============================================================================
+
+# Selenium Automation Testing Project
+
+Project automation testing menggunakan Selenium WebDriver dan Pytest.
+
+## Prerequisites
+- Python 3.8+
+- Google Chrome Browser
+- ChromeDriver (auto-managed by Selenium Manager)
+
+## Installation
+
+1. Clone repository
+```bash
+git clone <your-repo-url>
+cd <project-folder>
+```
+
+2. Create virtual environment
+```bash
+python -m venv venv
+.\venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
+```
+
+3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure credentials
+Edit `config.py` and update:
+- BASE_URL
+- USERNAME
+- PASSWORD
+
+## Running Tests
+
+Run all tests:
+```bash
+pytest -s --html=reports/report.html
+```
+
+Run specific test file:
+```bash
+pytest -s tests/test_example.py --html=reports/test_example.html
+```
+
+Run specific test case:
+```bash
+pytest -s tests/test_example.py::test_example_navigation
+```
+
+Run tests by marker:
+```bash
+pytest -s -m example_suite
+```
+
+## Project Structure
+```
+project_root/
+├── Pages/           # Page Object Models
+├── tests/           # Test cases
+├── utils/           # Helper utilities
+├── reports/         # HTML reports
+├── conftest.py      # Pytest fixtures
+├── config.py        # Configuration
+└── pytest.ini       # Pytest settings
+```
+
+## Features
+- Auto-login with session cookies
+- HTML test reports
+- Modular fixture design
+- Easy configuration management
+
+===============================================================================
+   CARA MENGGUNAKAN TEMPLATE INI
+===============================================================================
+
+1. SETUP PROJECT BARU:
+   - Buat folder project baru
+   - Copy struktur folder dan file di atas
+   - Buat virtual environment: python -m venv venv
+   - Aktifkan venv: .\venv\Scripts\activate (Windows)
+   - Install dependencies: pip install -r requirements.txt
+
+2. KONFIGURASI:
+   - Edit config.py dengan BASE_URL, USERNAME, PASSWORD aplikasi Anda
+   - Edit conftest.py bagian login sesuai dengan UI login aplikasi Anda
+   - Sesuaikan selector (By.ID, By.NAME, dll) dengan elemen HTML aplikasi
+
+3. BUAT TEST CASES:
+   - Buat file test baru di folder tests/ dengan prefix "test_"
+   - Gunakan fixture logged_in_driver untuk test yang perlu login
+   - Gunakan marker @pytest.mark.your_suite untuk grouping
+   - Tambahkan marker baru di pytest.ini jika perlu
+
+4. JALANKAN TEST:
+   - pytest -s                                    # Run all
+   - pytest -s tests/test_example.py              # Run specific file
+   - pytest -s -m example_suite                   # Run by marker
+   - pytest -s --html=reports/report.html         # With HTML report
+
+5. CUSTOMIZE:
+   - Tambahkan Page Object Models di folder Pages/
+   - Tambahkan helper functions di folder utils/
+   - Tambahkan fixture tambahan di conftest.py sesuai kebutuhan
+   - Update markers di pytest.ini untuk test grouping
+
+===============================================================================
+   TIPS & BEST PRACTICES
+===============================================================================
+
+1. SELALU gunakan fixture logged_in_driver untuk test yang membutuhkan login
+2. GUNAKAN markers untuk mengelompokkan test cases
+3. TAMBAHKAN print statements untuk debugging di output console
+4. GUNAKAN WebDriverWait untuk menunggu elemen, hindari time.sleep()
+5. SIMPAN kredensial sensitif di environment variables (production)
+6. BUAT Page Object Model untuk halaman yang kompleks
+7. JALANKAN test dengan flag -s untuk melihat output print
+8. REVIEW HTML report di folder reports/ setelah test selesai
+
+===============================================================================
+   TROUBLESHOOTING
+===============================================================================
+
+1. InvalidCookieDomainException:
+   - Pastikan driver.get(BASE_URL) dipanggil sebelum add_cookie()
+   
+2. Element not found:
+   - Pastikan selector benar (inspect element di browser)
+   - Tambahkan WebDriverWait untuk elemen yang loading lambat
+   
+3. Test hanging:
+   - Cek apakah ada modal/popup yang menghalangi
+   - Pastikan semua WebDriverWait memiliki timeout yang sesuai
+   
+4. Session cookie expired:
+   - Hapus file session.json dan jalankan ulang test
+   - Test akan login ulang via UI dan generate cookie baru
+
+===============================================================================
+   END OF TEMPLATE GUIDE
+===============================================================================
