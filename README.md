@@ -66,7 +66,7 @@ ENV=staging pytest -s
 ## Project Structure
 ```
 project_root/
-├── Pages/           # Page Object Models
+├── page_objects/    # Page Object Models
 ├── tests/           # Test cases
 ├── utils/           # Helper utilities
 ├── reports/         # HTML reports

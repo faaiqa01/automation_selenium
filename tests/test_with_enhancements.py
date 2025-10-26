@@ -1,7 +1,7 @@
 import pytest
 from tests.test_data import TEST_USERS, TEST_FORM_DATA, EXPECTED_MESSAGES
-from Pages.login_page import LoginPage
-from Pages.dashboard_page import DashboardPage
+from page_objects.login_page import LoginPage
+from page_objects.dashboard_page import DashboardPage
 from config import BASE_URL
 
 @pytest.mark.login_suite

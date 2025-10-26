@@ -1,7 +1,7 @@
 import pytest
 from selenium.webdriver.common.by import By
-from Pages.login_page import LoginPage
-from Pages.dashboard_page import DashboardPage
+from page_objects.login_page import LoginPage
+from page_objects.dashboard_page import DashboardPage
 from config import BASE_URL, USERNAME, PASSWORD
 
 @pytest.mark.login_suite
